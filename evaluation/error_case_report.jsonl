@@ -1,0 +1,6 @@
+{"index": 1, "lang": "ko", "text": "어제,오늘 전철호,이선정,영업팀에게 보낸 쪽지 알려줘", "issues": ["predicate_sequence_mismatch"]}
+{"index": 2, "lang": "en", "text": "Show messages sent to alice,bob yesterday", "issues": []}
+{"index": 1, "lang": "zh", "text": "显示昨天发送给张三、李四的消息", "issues": []}
+{"index": 1, "lang": "fr", "text": "Montre les messages envoyés à alice hier", "issues": []}
+{"index": 2, "lang": "de", "text": "Zeige die gestern an alice gesendeten Nachrichten", "issues": []}
+{"index": 1, "lang": "ar", "text": "اعرض الرسائل المرسلة إلى علي أمس", "issues": []}

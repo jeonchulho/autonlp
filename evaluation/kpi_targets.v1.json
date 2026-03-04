@@ -1,0 +1,14 @@
+{
+  "overall": {
+    "predicate_seq_acc": { "op": ">=", "value": 0.95 },
+    "object_seq_acc": { "op": ">=", "value": 0.90 },
+    "time_hint_coverage": { "op": ">=", "value": 0.95 },
+    "recipient_hint_coverage": { "op": ">=", "value": 0.90 },
+    "runtime_error_rate": { "op": "<=", "value": 0.01 }
+  },
+  "slice": {
+    "min_cases": 3,
+    "predicate_seq_acc": { "op": ">=", "value": 0.85 },
+    "runtime_error_rate": { "op": "<=", "value": 0.05 }
+  }
+}

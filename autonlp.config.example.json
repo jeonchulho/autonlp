@@ -1,0 +1,17 @@
+{
+  "suppress_report_verbs_ko": false,
+  "suppress_report_verbs_en": false,
+  "suppress_report_verbs_fr": false,
+  "suppress_report_verbs_de": false,
+  "suppress_report_verbs_ar": false,
+  "object_join_token": " | ",
+  "object_join_token_by_lang": {
+    "ko": " / ",
+    "en": " / ",
+    "ja": "・",
+    "zh": "、",
+    "fr": " / ",
+    "de": " / ",
+    "ar": " / "
+  }
+}
