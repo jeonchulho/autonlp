@@ -956,6 +956,31 @@ class ConditionExtractorPipeline:
             recipients.append(value)
         return recipients
 
+    def _extract_action_filter_tokens(self, text: str) -> list[str]:
+        patterns_by_lang = {
+            "ko": r"(보낸|보냈던|전송한|전송했던|수신한|수신했던|받은|받았던)",
+            "en": r"\b(sent|transmitted|delivered|received)\b",
+            "ja": r"(送った|送信した|受信した|受け取った)",
+            "zh": r"(发送的|發送的|传送的|傳送的|接收的|收到的)",
+            "fr": r"\b(envoyé|envoyée|envoyés|envoyées|reçu|reçue|reçus|reçues)\b",
+            "de": r"\b(gesendet|versendet|empfangen)\b",
+            "ar": r"(المرسلة|المرسل|المستلمة|المستلم)",
+        }
+        pattern = patterns_by_lang.get(self.lang)
+        if not pattern:
+            return []
+
+        tokens: list[str] = []
+        seen = set()
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            token = match.group(1).strip()
+            key = token.lower()
+            if not token or key in seen:
+                continue
+            seen.add(key)
+            tokens.append(token)
+        return tokens
+
     def _extract_conditions(self, sentence) -> list[Condition]:
         conditions: list[Condition] = []
         candidates = collect_condition_candidates(sentence)
@@ -1149,6 +1174,19 @@ class ConditionExtractorPipeline:
                             source="rule",
                         )
                     )
+
+        for token in self._extract_action_filter_tokens(sentence.text):
+            if any(cond.value and cond.value.lower() == token.lower() for cond in conditions):
+                continue
+            conditions.append(
+                Condition(
+                    label="ACTION_FILTER",
+                    text=token,
+                    value=token,
+                    confidence=0.72,
+                    source="rule",
+                )
+            )
 
         if self.lang == "ko":
             for match in re.finditer(r"(\d+[여]?[\s]*명)(?:이|가|은|는|을|를)?", sentence.text):

@@ -10,6 +10,7 @@ LABELS = {
     "DURATION",
     "LOC",
     "RECIPIENT",
+    "ACTION_FILTER",
     "PURPOSE",
     "METHOD",
     "VALUE",
@@ -166,6 +167,14 @@ def extract_recipients_from_text(text: str, lang: str = "ko") -> list[str]:
             names = [name.strip() for name in match.group(1).split(",") if name.strip()]
             recipients.extend(names)
 
+        recv_send_modifier_matches = re.finditer(
+            r"([\w가-힣]+(?:\s*,\s*[\w가-힣]+)+)\s*(?:이|가)\s*(?:수신한|수신했던|받은|받았던|전송한|전송했던|보낸|보냈던)",
+            text,
+        )
+        for match in recv_send_modifier_matches:
+            names = [name.strip() for name in match.group(1).split(",") if name.strip()]
+            recipients.extend(names)
+
         possessive_matches = re.finditer(
             r"([가-힣A-Za-z0-9_]{2,}(?:이사|상무|전무|부장|팀장|과장|차장|대리|매니저|대표|님)?)의\s*(?:매출|실적|내역|합계|보고서|지표|데이터|통계|현황)",
             text,
@@ -182,6 +191,16 @@ def extract_recipients_from_text(text: str, lang: str = "ko") -> list[str]:
         for match in matches:
             names = [name.strip() for name in match.group(1).split(",") if name.strip()]
             recipients.extend(names)
+
+        subject_action_matches = re.finditer(
+            r"([A-Za-z0-9_]+(?:\s*,\s*[A-Za-z0-9_]+)+)\s+(?:received|got|sent|transmitted)\b",
+            text,
+            re.IGNORECASE,
+        )
+        for match in subject_action_matches:
+            names = [name.strip() for name in match.group(1).split(",") if name.strip()]
+            recipients.extend(names)
+
         if not re.search(r"\b(to|for)\b", query_like.lower()):
             _extend_query_style_recipients(r"^[A-Za-z0-9_\-']+$")
     elif lang == "ja":
@@ -189,6 +208,15 @@ def extract_recipients_from_text(text: str, lang: str = "ko") -> list[str]:
         for match in matches:
             names = [name.strip() for name in re.split(r"[、,]", match.group(1)) if name.strip()]
             recipients.extend(names)
+
+        subject_action_matches = re.finditer(
+            r"([\wぁ-んァ-ン一-龥ー]+(?:\s*[、,]\s*[\wぁ-んァ-ン一-龥ー]+)+)\s*(?:が|は)\s*(?:受信した|受け取った|送った|送信した)",
+            text,
+        )
+        for match in subject_action_matches:
+            names = [name.strip() for name in re.split(r"[、,]", match.group(1)) if name.strip()]
+            recipients.extend(names)
+
         _extend_query_style_recipients(r"^[\wぁ-んァ-ン一-龥ーA-Za-z0-9_]+$")
     elif lang == "zh":
         matches = re.finditer(r"(?:给|向|对)\s*([A-Za-z0-9_一-龥㐀-䶿]{1,20}(?:\s*[，,、]\s*[A-Za-z0-9_一-龥㐀-䶿]{1,20})*)", text)
@@ -205,18 +233,47 @@ def extract_recipients_from_text(text: str, lang: str = "ko") -> list[str]:
                     cleaned_names.append(cjk_match.group(1))
             names = cleaned_names
             recipients.extend(names)
+
+        subject_action_matches = re.finditer(
+            r"([A-Za-z0-9_一-龥㐀-䶿]{1,20}(?:\s*[，,、]\s*[A-Za-z0-9_一-龥㐀-䶿]{1,20})+)\s*(?:收到了|收到|接收了|接收|发送了|發送了|传送了|傳送了)",
+            text,
+        )
+        for match in subject_action_matches:
+            names = [name.strip() for name in re.split(r"[，,、]", match.group(1)) if name.strip()]
+            recipients.extend(names)
+
         _extend_query_style_recipients(r"^[\w一-龥㐀-䶿A-Za-z0-9_]+$")
     elif lang == "fr":
         matches = re.finditer(r"(?:à|pour)\s+([A-Za-zÀ-ÖØ-öø-ÿ0-9_\-']+(?:\s*,\s*[A-Za-zÀ-ÖØ-öø-ÿ0-9_\-']+)*)", text, re.IGNORECASE)
         for match in matches:
             names = [name.strip() for name in match.group(1).split(",") if name.strip()]
             recipients.extend(names)
+
+        subject_action_matches = re.finditer(
+            r"([A-Za-zÀ-ÖØ-öø-ÿ0-9_\-']+(?:\s*,\s*[A-Za-zÀ-ÖØ-öø-ÿ0-9_\-']+)+)\s+ont\s+(?:reçu|reçus|envoyé|envoyés)",
+            text,
+            re.IGNORECASE,
+        )
+        for match in subject_action_matches:
+            names = [name.strip() for name in match.group(1).split(",") if name.strip()]
+            recipients.extend(names)
+
         _extend_query_style_recipients(r"^[A-Za-zÀ-ÖØ-öø-ÿ0-9_\-']+$")
     elif lang == "de":
         matches = re.finditer(r"(?:an|für)\s+([A-Za-zÄÖÜäöüß0-9_\-']+(?:\s*,\s*[A-Za-zÄÖÜäöüß0-9_\-']+)*)", text, re.IGNORECASE)
         for match in matches:
             names = [name.strip() for name in match.group(1).split(",") if name.strip()]
             recipients.extend(names)
+
+        subject_action_matches = re.finditer(
+            r"([A-Za-zÄÖÜäöüß0-9_\-']+(?:\s*,\s*[A-Za-zÄÖÜäöüß0-9_\-']+)+)\s+haben(?:\s+[A-Za-zÄÖÜäöüß0-9_\-']+){0,4}\s+(?:empfangen|erhalten|gesendet|versendet)",
+            text,
+            re.IGNORECASE,
+        )
+        for match in subject_action_matches:
+            names = [name.strip() for name in match.group(1).split(",") if name.strip()]
+            recipients.extend(names)
+
         _extend_query_style_recipients(r"^[A-Za-zÄÖÜäöüß0-9_\-']+$")
     elif lang == "ar":
         matches = re.finditer(r"(?:إلى|لـ)\s*([\w\u0600-\u06FF]{1,20}(?:\s*[،,]\s*[\w\u0600-\u06FF]{1,20})*)", text)
@@ -224,6 +281,16 @@ def extract_recipients_from_text(text: str, lang: str = "ko") -> list[str]:
             names = [name.strip() for name in re.split(r"[،,]", match.group(1)) if name.strip()]
             names = [name for name in names if re.match(r"^[\w\u0600-\u06FF]{1,20}$", name)]
             recipients.extend(names)
+
+        subject_action_matches = re.finditer(
+            r"([\w\u0600-\u06FF]{1,20}(?:\s*[،,]\s*[\w\u0600-\u06FF]{1,20})+)\s*(?:استلموا|تلقوا|أرسلوا)",
+            text,
+        )
+        for match in subject_action_matches:
+            names = [name.strip() for name in re.split(r"[،,]", match.group(1)) if name.strip()]
+            names = [name for name in names if re.match(r"^[\w\u0600-\u06FF]{1,20}$", name)]
+            recipients.extend(names)
+
         _extend_query_style_recipients(r"^[\w\u0600-\u06FFA-Za-z0-9_]+$")
 
     deduped = []
