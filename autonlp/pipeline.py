@@ -5,6 +5,24 @@ from typing import Iterable, Optional
 
 import stanza
 
+from .patterns import (
+    AUXILIARIES_BY_LANG,
+    PREFERRED_MESSAGE_NOUNS_BY_LANG,
+    PREDICATE_ACL_END_REGEX_BY_LANG,
+    PREDICATE_CONJ_END_REGEX_BY_LANG,
+    PREDICATE_CONNECTOR_STOPWORDS_BY_LANG,
+    PREDICATE_EVENT_LIKE_REGEX_BY_LANG,
+    PREDICATE_SKIP_NEXT_AUX_TOKENS_BY_LANG,
+    PREDICATE_SUPPRESS_TOKENS_BASE_BY_LANG,
+    PREDICATE_SUPPRESS_TOKENS_EXTRA_BY_LANG,
+    REFERENCE_OBJECT_TOKENS_BY_LANG,
+    REFERENTIAL_TOKENS_BY_LANG,
+    SUBJECT_NULL_TOKENS_BY_LANG,
+    SUBJECT_TIME_STOPWORDS_BY_LANG,
+    TIME_LIKE_OBJECT_TOKENS_BY_LANG,
+    get_connectors,
+    get_pattern,
+)
 from .llm import BaseLLMLabeler, NullLLMLabeler
 from .rules import collect_condition_candidates, detect_sentence_polarity, extract_recipients_from_text, rule_label_condition
 from .schema import Condition, ExtractionResult, SentenceExtraction
@@ -191,8 +209,8 @@ class ConditionExtractorPipeline:
                     and word.deprel in {"compound", "amod", "nummod", "det", "nmod"}
                 ):
                     if self.lang == "ko" and (
-                        re.search(r"\d+일$", word.text)
-                        or word.text in {"이날", "당일", "오늘", "어제", "내일"}
+                        get_pattern(self.lang, "ko_day_suffix").search(word.text)
+                        or word.text in SUBJECT_TIME_STOPWORDS_BY_LANG["ko"]
                     ):
                         continue
                     subject_ids.add(word.id)
@@ -231,7 +249,7 @@ class ConditionExtractorPipeline:
             for word in words
             if previous_predicate_id < word.id < predicate_id
             and word.upos in {"NOUN", "PROPN"}
-            and re.search(r"(이|가|은|는|께서)$", word.text)
+            and get_pattern(self.lang, "ko_subject_particle").search(word.text)
         ]
         if preceding_subjects:
             candidate = self._clean_subject_text(preceding_subjects[-1].text)
@@ -244,23 +262,10 @@ class ConditionExtractorPipeline:
         value = (predicate_text or "").strip().lower()
         if not value:
             return False
-
-        if self.lang == "ko":
-            return bool(re.search(r"(밝혔|말했|전했|설명했|주장했|언급했|발표했|보도했)", value))
-        if self.lang == "en":
-            return value in {"said", "stated", "announced", "reported", "noted", "added", "told"}
-        if self.lang == "fr":
-            return value in {"déclaré", "indiqué", "annoncé", "rapporté", "affirmé", "ajouté"}
-        if self.lang == "de":
-            return value in {"sagte", "erklärte", "berichtete", "meldete", "fügte"}
-        if self.lang == "ar":
-            return bool(re.search(r"(قال|صرح|أعلن|ذكر|أفاد)", value))
-        if self.lang == "zh":
-            return any(token in value for token in {"称", "表示", "指出", "说", "宣布"})
-        if self.lang == "ja":
-            return any(token in value for token in {"述べ", "語", "発表", "明らか"})
-
-        return False
+        try:
+            return bool(get_pattern(self.lang, "report_verb").search(value))
+        except KeyError:
+            return False
 
     def _clean_subject_text(self, subject_text: Optional[str]) -> Optional[str]:
         if subject_text is None:
@@ -269,34 +274,23 @@ class ConditionExtractorPipeline:
         if not value:
             return None
 
-        value = re.sub(r"^[\"'“”‘’`]+|[\"'“”‘’`]+$", "", value)
-        value = re.sub(r"[\"'“”‘’`]+", "", value)
+        value = get_pattern(self.lang, "quote_edges").sub("", value)
+        value = get_pattern(self.lang, "quote_all").sub("", value)
 
         if self.lang == "ko":
-            value = re.sub(r"(이|가|은|는|께서)$", "", value).strip()
-            if re.search(r"^(\d{1,2}일|이날|당일|오늘|어제|내일)$", value):
-                return None
-            if value in {"쪽지", "메시지", "메일", "이메일", "문자", "내용"}:
+            value = get_pattern(self.lang, "ko_subject_particle").sub("", value).strip()
+            if get_pattern(self.lang, "ko_day_token_exact").search(value):
                 return None
 
-        if self.lang == "en":
-            if value.lower() in {"today", "yesterday", "tomorrow"}:
-                return None
-        if self.lang == "fr":
-            if value.lower() in {"aujourd'hui", "hier", "demain"}:
-                return None
-        if self.lang == "de":
-            if value.lower() in {"heute", "gestern", "morgen"}:
-                return None
-        if self.lang == "zh":
-            if value in {"今天", "昨天", "明天", "当日", "当天"}:
-                return None
-        if self.lang == "ja":
-            if value in {"今日", "昨日", "明日", "当日"}:
-                return None
-        if self.lang == "ar":
-            if value in {"اليوم", "أمس", "غدًا", "غدا"}:
-                return None
+        subject_null_tokens = SUBJECT_NULL_TOKENS_BY_LANG.get(self.lang, set())
+        null_lookup = value.lower() if self.lang in {"en", "fr", "de"} else value
+        if null_lookup in subject_null_tokens:
+            return None
+
+        stopwords = SUBJECT_TIME_STOPWORDS_BY_LANG.get(self.lang, set())
+        lookup_value = value.lower() if self.lang in {"en", "fr", "de"} else value
+        if lookup_value in stopwords:
+            return None
 
         return value or None
 
@@ -304,16 +298,24 @@ class ConditionExtractorPipeline:
         if predicate is None:
             return None
         normalized = predicate.strip()
-        normalized = re.sub(r"^[\"'“”‘’`]+|[\"'“”‘’`]+$", "", normalized)
-        normalized = re.sub(r"[\"'“”‘’`]+", "", normalized)
-        normalized = re.sub(r"[.,!?;:]+$", "", normalized)
+        normalized = get_pattern(self.lang, "quote_edges").sub("", normalized)
+        normalized = get_pattern(self.lang, "quote_all").sub("", normalized)
+        normalized = get_pattern(self.lang, "trail_punct").sub("", normalized)
         if self.lang == "ko":
-            normalized = re.sub(r"다고$", "다", normalized)
+            normalized = get_pattern(self.lang, "ko_predicate_dago").sub("다", normalized)
         return normalized or predicate
 
     def _extract_predicate_words(self, sentence) -> list:
         words = sentence.words
         by_id = {word.id: word for word in words}
+        predicate_conj_pattern = PREDICATE_CONJ_END_REGEX_BY_LANG.get(self.lang)
+        predicate_acl_pattern = PREDICATE_ACL_END_REGEX_BY_LANG.get(self.lang)
+        connector_stopwords = PREDICATE_CONNECTOR_STOPWORDS_BY_LANG.get(self.lang, set())
+        skip_next_aux_tokens = PREDICATE_SKIP_NEXT_AUX_TOKENS_BY_LANG.get(self.lang, set())
+        connector_stopwords_norm = {
+            token.lower() if self.lang in {"en", "fr", "de"} else token
+            for token in connector_stopwords
+        }
         candidates = []
         for word in words:
             if word.upos in {"VERB", "ADJ"} and word.deprel in {"root", "conj", "advcl", "xcomp", "ccomp"}:
@@ -324,7 +326,7 @@ class ConditionExtractorPipeline:
                 candidates.append(word)
                 continue
 
-            if self.lang == "ar" and word.upos == "X" and word.deprel in {"root", "conj"} and re.search(r"[\u0600-\u06FF]", word.text):
+            if self.lang == "ar" and word.upos == "X" and word.deprel in {"root", "conj"} and get_pattern(self.lang, "arabic_script").search(word.text):
                 candidates.append(word)
                 continue
 
@@ -336,33 +338,42 @@ class ConditionExtractorPipeline:
                     continue
 
             if (
-                self.lang == "ko"
-                and word.upos in {"SCONJ", "CCONJ"}
+                word.upos in {"SCONJ", "CCONJ"}
                 and word.deprel in {"root", "conj", "advcl", "ccomp"}
-                and re.search(r"(고|서|해|줘|다)$", word.text)
-                and word.text not in {"그리고", "또는", "및", "와", "과"}
+                and predicate_conj_pattern is not None
+                and re.search(predicate_conj_pattern, word.text)
+                and ((word.text or "").lower() if self.lang in {"en", "fr", "de"} else (word.text or "")) not in connector_stopwords_norm
             ):
                 candidates.append(word)
 
             if (
-                self.lang == "ko"
-                and word.upos == "VERB"
+                word.upos == "VERB"
                 and word.deprel == "acl"
-                and re.search(r"(다|다는|됐다|됐다는|했다|했다는)$", word.text)
+                and predicate_acl_pattern is not None
+                and re.search(predicate_acl_pattern, word.text)
             ):
                 candidates.append(word)
+
+        if candidates and skip_next_aux_tokens:
+            filtered_candidates = []
+            for word in candidates:
+                next_word = by_id.get(word.id + 1)
+                next_text = (next_word.text or "") if next_word is not None else ""
+                token_key = next_text.lower() if self.lang in {"en", "fr", "de"} else next_text
+                if (
+                    word.upos == "VERB"
+                    and next_word is not None
+                    and next_word.upos == "AUX"
+                    and token_key in skip_next_aux_tokens
+                ):
+                    continue
+                filtered_candidates.append(word)
+            candidates = filtered_candidates
 
         if self.lang == "ko" and candidates:
             filtered_candidates = []
             for word in candidates:
                 next_word = by_id.get(word.id + 1)
-                if (
-                    word.upos == "VERB"
-                    and next_word is not None
-                    and next_word.upos == "AUX"
-                    and next_word.text in {"할", "한", "하는"}
-                ):
-                    continue
                 if (
                     word.upos == "VERB"
                     and word.deprel == "acl"
@@ -380,25 +391,12 @@ class ConditionExtractorPipeline:
                     continue
                 filtered_candidates.append(word)
 
-            event_like_exists = any(
-                re.search(r"(침몰|격침|실종|발사|전해|밝혔|작성|보내|참조|알려)", word.text)
-                for word in filtered_candidates
-            )
-            if event_like_exists:
-                suppress_report_verbs_ko = bool(self.config.get("suppress_report_verbs_ko", False)) if isinstance(self.config, dict) else False
-                suppressible_tokens = {"입장이다", "것이다", "나온", "나왔다"}
-                if suppress_report_verbs_ko:
-                    suppressible_tokens.update({"밝혔다", "전했다", "말했다"})
-                filtered_candidates = [
-                    word
-                    for word in filtered_candidates
-                    if word.text not in suppressible_tokens
-                ]
-
             candidates = filtered_candidates
 
         if self.lang in {"en", "fr", "de"} and candidates:
-            auxiliaries = {"be", "do", "have", "être", "avoir", "sein", "haben"}
+            auxiliaries = set()
+            for language in {"en", "fr", "de"}:
+                auxiliaries.update(AUXILIARIES_BY_LANG.get(language, set()))
             filtered_candidates = []
             for word in candidates:
                 lemma = (word.lemma or "").lower()
@@ -407,52 +405,39 @@ class ConditionExtractorPipeline:
                 filtered_candidates.append(word)
             candidates = filtered_candidates
 
-        if self.lang == "en" and candidates:
-            suppress_report_verbs_en = bool(self.config.get("suppress_report_verbs_en", False)) if isinstance(self.config, dict) else False
-            if suppress_report_verbs_en:
-                event_like_exists = any(
-                    re.search(r"(sink|sank|launch|torpedo|destroy|miss|dead|killed|attack|rescue|explode)", (word.text or "").lower())
-                    for word in candidates
+        if candidates:
+            event_pattern = PREDICATE_EVENT_LIKE_REGEX_BY_LANG.get(self.lang)
+            event_like_exists = bool(event_pattern) and any(
+                re.search(
+                    event_pattern,
+                    (word.text or "").lower() if self.lang in {"en", "fr", "de"} else (word.text or ""),
                 )
-                if event_like_exists:
-                    report_tokens = {"said", "stated", "announced", "reported", "added", "noted"}
-                    candidates = [word for word in candidates if (word.text or "").lower() not in report_tokens]
+                for word in candidates
+            )
+            suppress_key = f"suppress_report_verbs_{self.lang}"
+            suppress_with_extra = bool(self.config.get(suppress_key, False)) if isinstance(self.config, dict) else False
+            always_apply_base = self.lang == "ko"
+            if event_like_exists and (always_apply_base or suppress_with_extra):
+                base_tokens = PREDICATE_SUPPRESS_TOKENS_BASE_BY_LANG.get(self.lang, set())
+                extra_tokens = PREDICATE_SUPPRESS_TOKENS_EXTRA_BY_LANG.get(self.lang, set()) if suppress_with_extra else set()
+                suppressible_tokens = set(base_tokens) | set(extra_tokens)
+                if self.lang in {"en", "fr", "de"}:
+                    suppressible_tokens = {token.lower() for token in suppressible_tokens}
+                    candidates = [word for word in candidates if (word.text or "").lower() not in suppressible_tokens]
+                else:
+                    candidates = [word for word in candidates if (word.text or "") not in suppressible_tokens]
 
-        if self.lang == "fr" and candidates:
-            suppress_report_verbs_fr = bool(self.config.get("suppress_report_verbs_fr", False)) if isinstance(self.config, dict) else False
-            if suppress_report_verbs_fr:
-                event_like_exists = any(
-                    re.search(r"(coulé|couler|tiré|tirer|torpille|frapp|détruit|disparu|attaque|explos)", (word.text or "").lower())
-                    for word in candidates
-                )
-                if event_like_exists:
-                    report_tokens = {"déclaré", "indiqué", "annoncé", "rapporté", "affirmé"}
-                    candidates = [word for word in candidates if (word.text or "").lower() not in report_tokens]
-
-        if self.lang == "de" and candidates:
-            suppress_report_verbs_de = bool(self.config.get("suppress_report_verbs_de", False)) if isinstance(self.config, dict) else False
-            if suppress_report_verbs_de:
-                event_like_exists = any(
-                    re.search(r"(torpedo|feuer|versenk|sank|explod|angriff|vermisst|getötet)", (word.text or "").lower())
-                    for word in candidates
-                )
-                if event_like_exists:
-                    report_tokens = {"sagte", "erklärte", "berichtete", "meldete", "fügte"}
-                    candidates = [word for word in candidates if (word.text or "").lower() not in report_tokens]
-
-        if self.lang == "ar" and candidates:
-            suppress_report_verbs_ar = bool(self.config.get("suppress_report_verbs_ar", False)) if isinstance(self.config, dict) else False
-            if suppress_report_verbs_ar:
-                event_like_exists = any(
-                    re.search(r"(أطلق|أغر|غرق|هجم|انفجر|فقد|قتل)", (word.text or ""))
-                    for word in candidates
-                )
-                if event_like_exists:
-                    report_tokens = {"قال", "صرح", "أعلن", "ذكر", "أفاد"}
-                    candidates = [word for word in candidates if (word.text or "") not in report_tokens]
+        if candidates and isinstance(self.config, dict):
+            suppress_key = f"suppress_report_verbs_{self.lang}"
+            if bool(self.config.get(suppress_key, False)):
+                non_report_exists = any(not self._is_report_verb(word.text or "") for word in candidates)
+                if non_report_exists:
+                    candidates = [word for word in candidates if not self._is_report_verb(word.text or "")]
 
         if not candidates:
             root = next((word for word in words if word.deprel == "root" and word.upos in {"VERB", "AUX", "ADJ"}), None)
+            if root is None and self.lang == "ar":
+                root = next((word for word in words if word.deprel == "root" and get_pattern(self.lang, "arabic_script").search(word.text or "")), None)
             return [root] if root is not None else []
 
         deduped = []
@@ -607,7 +592,7 @@ class ConditionExtractorPipeline:
         obj = object_word.text if object_word else None
 
         if self.lang == "ko" and subject:
-            match = re.match(r"(.+?)(이|가|은|는|께서)$", subject)
+            match = re.match(r"(.+?)(?:이|가|은|는|께서)$", subject)
             if match:
                 subject = match.group(1).strip()
 
@@ -619,13 +604,13 @@ class ConditionExtractorPipeline:
                 if word.head == object_word.id
                 and word.id < object_word.id
                 and word.deprel in {"compound", "amod", "nummod", "det"}
-                and not (self.lang == "ko" and re.search(r"(이|가|은|는|께서)$", word.text))
+                and not (self.lang == "ko" and get_pattern(self.lang, "ko_subject_particle").search(word.text))
             }
             if obj_modifiers:
                 start_id = min(obj_modifiers)
 
             between_words = [word for word in words if start_id <= word.id < predicate_word.id]
-            connectors = {"및", "와", "과", "또는", "and", "et", "und", "ou", "oder", "و", "أو", "和", "及", ",", "，", "、"}
+            connectors = get_connectors(self.lang)
             has_connector = any(word.text in connectors for word in between_words)
             has_next_noun = any(word.upos == "NOUN" and word.id > start_id for word in between_words)
             if has_connector and has_next_noun:
@@ -633,28 +618,7 @@ class ConditionExtractorPipeline:
 
         if obj and predicate_word and predicate_word.id < object_word.id:
             tail_words = [word for word in words if word.id >= object_word.id]
-            connectors = {
-                "및",
-                "와",
-                "과",
-                "또는",
-                "and",
-                "or",
-                "et",
-                "ou",
-                "und",
-                "oder",
-                "和",
-                "及",
-                "以及",
-                "或",
-                "或者",
-                "و",
-                "أو",
-                ",",
-                "，",
-                "、",
-            }
+            connectors = get_connectors(self.lang)
             has_connector = any(word.text in connectors for word in tail_words)
             has_next_noun = any(word.upos == "NOUN" and word.id > object_word.id for word in tail_words)
             if has_connector and has_next_noun:
@@ -674,7 +638,7 @@ class ConditionExtractorPipeline:
             for word in words:
                 if word.upos != "NOUN":
                     continue
-                match = re.match(r"(.+?)(이|가|은|는|께서)$", word.text)
+                match = re.match(r"(.+?)(?:이|가|은|는|께서)$", word.text)
                 if match:
                     candidate = match.group(1).strip()
                     if candidate:
@@ -692,34 +656,21 @@ class ConditionExtractorPipeline:
         return predicate, subject, obj
 
     def _clean_object_text(self, obj_text: str, sentence_text: str) -> str:
+        cleaned = self._clean_korean_object_text(obj_text, sentence_text)
         if self.lang == "ko":
-            return self._clean_korean_object_text(obj_text, sentence_text)
-        return self._clean_multilingual_referential_object_text(obj_text, sentence_text, self.lang)
+            return cleaned
+        return self._clean_multilingual_referential_object_text(cleaned, sentence_text, self.lang)
 
     def _clean_korean_object_text(self, obj_text: str, sentence_text: str) -> str:
         tokens = [token for token in obj_text.split() if token]
         if not tokens:
             return obj_text
 
-        referential_tokens = {"그내용", "그내용을", "그 내용", "그 내용을", "내용", "내용을", "것", "그것", "그것을"}
+        referential_tokens = REFERENCE_OBJECT_TOKENS_BY_LANG.get(self.lang, set())
         collapsed = re.sub(r"\s+", "", obj_text)
-        preferred_message_nouns = [
-            "쪽지함",
-            "메시지함",
-            "메일함",
-            "이메일함",
-            "문자함",
-            "쪽지내역",
-            "메시지내역",
-            "메일내역",
-            "이메일내역",
-            "문자내역",
-            "쪽지",
-            "메시지",
-            "문자",
-            "메일",
-            "이메일",
-        ]
+        preferred_message_nouns = PREFERRED_MESSAGE_NOUNS_BY_LANG.get(self.lang, [])
+
+        referential_tokens_compact = {re.sub(r"\s+", "", token) for token in referential_tokens}
 
         def _pick_preferred_message_noun(text: str) -> Optional[str]:
             positions = [(text.find(noun), noun) for noun in preferred_message_nouns if noun in text]
@@ -729,27 +680,20 @@ class ConditionExtractorPipeline:
             positions.sort(key=lambda item: item[0])
             return positions[0][1]
 
-        if collapsed in {"그내용", "그내용을", "내용", "내용을", "그것", "그것을", "것"}:
+        if collapsed in referential_tokens_compact:
             preferred = _pick_preferred_message_noun(sentence_text)
             if preferred:
                 return preferred
 
-        if any(token in referential_tokens for token in tokens):
+        if any(token in referential_tokens for token in tokens) or any(
+            compact_token in collapsed for compact_token in referential_tokens_compact
+        ):
             preferred = _pick_preferred_message_noun(sentence_text)
             if preferred:
                 return preferred
 
-        recipient_names = set(extract_recipients_from_text(sentence_text, lang="ko"))
-        time_like_tokens = {
-            "어제",
-            "오늘",
-            "내일",
-            "지금",
-            "방금",
-            "최근",
-            "이번",
-            "지난",
-        }
+        recipient_names = set(extract_recipients_from_text(sentence_text, lang=self.lang))
+        time_like_tokens = TIME_LIKE_OBJECT_TOKENS_BY_LANG.get(self.lang, set())
         removable = recipient_names | time_like_tokens
 
         filtered = [token for token in tokens if token not in removable]
@@ -806,35 +750,8 @@ class ConditionExtractorPipeline:
         return None
 
     def _clean_multilingual_referential_object_text(self, obj_text: str, sentence_text: str, lang: str) -> str:
-        referential_tokens = {
-            "en": {"it", "this", "that", "the content", "this content", "that content", "content"},
-            "ja": {"内容", "その内容", "これ", "それ"},
-            "zh": {"内容", "这个内容", "那个内容", "该内容", "这个", "那个"},
-            "fr": {"contenu", "ce contenu", "ceci", "cela", "ça"},
-            "de": {"inhalt", "dieser inhalt", "dies", "das", "es"},
-            "ar": {"المحتوى", "هذا المحتوى", "ذلك المحتوى", "هذا", "ذلك"},
-        }
-
-        preferred_message_nouns = {
-            "en": ["message history", "message thread", "mailbox", "inbox", "messages", "message", "email", "mail", "text"],
-            "ja": ["メッセージ履歴", "メールボックス", "受信箱", "メッセージ", "メール"],
-            "zh": ["消息记录", "消息历史", "邮箱", "收件箱", "消息", "邮件", "短信"],
-            "fr": [
-                "historique des messages",
-                "boîte mail",
-                "boîte de réception",
-                "les messages",
-                "des messages",
-                "un message",
-                "messages",
-                "message",
-                "e-mail",
-                "mail",
-                "sms",
-            ],
-            "de": ["nachrichtenverlauf", "postfach", "eingang", "nachrichten", "nachricht", "e-mail", "mail", "sms"],
-            "ar": ["سجل الرسائل", "صندوق البريد", "البريد الوارد", "رسائل", "رسالة", "بريد إلكتروني", "بريد", "رسالة نصية"],
-        }
+        referential_tokens = REFERENTIAL_TOKENS_BY_LANG
+        preferred_message_nouns = PREFERRED_MESSAGE_NOUNS_BY_LANG
 
         refs = referential_tokens.get(lang)
         nouns = preferred_message_nouns.get(lang)
@@ -875,18 +792,7 @@ class ConditionExtractorPipeline:
     def _split_object_items(self, obj_text: Optional[str]) -> list[str]:
         if not obj_text:
             return []
-        lang_separators = {
-            "ko": ["및", "와", "과", "또는"],
-            "en": ["and", "or"],
-            "ja": ["と", "および", "または"],
-            "zh": ["和", "及", "以及", "或", "或者"],
-            "fr": ["et", "ou"],
-            "de": ["und", "oder"],
-            "ar": ["و", "أو"],
-        }
-        separators = lang_separators.get(self.lang, []) + ["/", "／", "·", "・", "&", ",", "，", "、", "|"]
-        token_pattern = "|".join(sorted((re.escape(token) for token in separators), key=len, reverse=True))
-        parts = re.split(rf"\s*(?:{token_pattern})\s*", obj_text)
+        parts = get_pattern(self.lang, "object_split").split(obj_text)
         items = [part.strip(" \t\n\r.,，、") for part in parts if part.strip(" \t\n\r.,，、")]
 
         if self.normalize_object_items:
@@ -905,10 +811,10 @@ class ConditionExtractorPipeline:
             return ""
 
         if self.lang == "ko":
-            value = re.sub(r"(을|를|은|는|이|가)$", "", value).strip()
+            value = get_pattern(self.lang, "ko_object_particle").sub("", value).strip()
 
         if self.lang in {"zh", "ja"}:
-            value = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", value)
+            value = get_pattern(self.lang, "cjk_inner_space").sub("", value)
 
         return value
 
@@ -957,22 +863,14 @@ class ConditionExtractorPipeline:
         return recipients
 
     def _extract_action_filter_tokens(self, text: str) -> list[str]:
-        patterns_by_lang = {
-            "ko": r"(보낸|보냈던|전송한|전송했던|수신한|수신했던|받은|받았던)",
-            "en": r"\b(sent|transmitted|delivered|received)\b",
-            "ja": r"(送った|送信した|受信した|受け取った)",
-            "zh": r"(发送的|發送的|传送的|傳送的|接收的|收到的)",
-            "fr": r"\b(envoyé|envoyée|envoyés|envoyées|reçu|reçue|reçus|reçues)\b",
-            "de": r"\b(gesendet|versendet|empfangen)\b",
-            "ar": r"(المرسلة|المرسل|المستلمة|المستلم)",
-        }
-        pattern = patterns_by_lang.get(self.lang)
-        if not pattern:
+        try:
+            pattern = get_pattern(self.lang, "action_filter")
+        except KeyError:
             return []
 
         tokens: list[str] = []
         seen = set()
-        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+        for match in pattern.finditer(text):
             token = match.group(1).strip()
             key = token.lower()
             if not token or key in seen:
@@ -980,6 +878,57 @@ class ConditionExtractorPipeline:
             seen.add(key)
             tokens.append(token)
         return tokens
+
+    def _dedupe_conditions(self, conditions: list[Condition]) -> list[Condition]:
+        deduped: list[Condition] = []
+        seen: set[tuple] = set()
+
+        for condition in conditions:
+            value = (condition.value or condition.text or "").strip()
+            normalized = condition.normalized or {}
+            normalized_key = (
+                normalized.get("kind"),
+                normalized.get("start"),
+                normalized.get("end"),
+                normalized.get("point"),
+                normalized.get("expression"),
+            )
+
+            if condition.label == "TIME" and condition.normalized:
+                key = (condition.label, normalized_key)
+            else:
+                key = (condition.label, value, normalized_key)
+
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(condition)
+
+        return deduped
+
+    def _prune_noisy_time_conditions(self, conditions: list[Condition]) -> list[Condition]:
+        if self.lang not in {"en", "fr", "de"}:
+            return conditions
+
+        clause_markers = {
+            "en": {"that"},
+            "fr": {"que", "qu'"},
+            "de": {"dass"},
+        }.get(self.lang, set())
+
+        pruned: list[Condition] = []
+        for condition in conditions:
+            if condition.label != "TIME":
+                pruned.append(condition)
+                continue
+
+            text = (condition.text or "").strip().lower()
+            tokens = [token for token in re.split(r"\s+", text) if token]
+            if len(tokens) >= 3 and any(token in clause_markers for token in tokens):
+                continue
+            pruned.append(condition)
+
+        return pruned
 
     def _extract_conditions(self, sentence) -> list[Condition]:
         conditions: list[Condition] = []
@@ -1092,6 +1041,19 @@ class ConditionExtractorPipeline:
                 )
             )
 
+        if self.lang in {"zh", "ja"}:
+            for token in SUBJECT_TIME_STOPWORDS_BY_LANG.get(self.lang, set()):
+                if token in sentence.text and not any(cond.label == "TIME" and cond.text == token for cond in conditions):
+                    conditions.append(
+                        Condition(
+                            label="TIME",
+                            text=token,
+                            value=token,
+                            confidence=0.74,
+                            source="rule",
+                        )
+                    )
+
         recipient_names = extract_recipients_from_text(sentence.text, lang=self.lang)
         for recipient in recipient_names:
             if not self._is_allowed_recipient(recipient):
@@ -1135,7 +1097,7 @@ class ConditionExtractorPipeline:
                 )
 
         if self.lang == "ko" and not any(cond.label == "METHOD" for cond in conditions):
-            reference_match = re.search(r"(참조해서|참조해|참조|참고해서|참고해|참고)", sentence.text)
+            reference_match = get_pattern(self.lang, "ko_reference_method").search(sentence.text)
             if reference_match:
                 phrase = reference_match.group(1)
                 conditions.append(
@@ -1149,7 +1111,7 @@ class ConditionExtractorPipeline:
                 )
 
         if self.lang == "ko":
-            for match in re.finditer(r"\b(\d{1,2})일\b", sentence.text):
+            for match in get_pattern(self.lang, "ko_numeric_day").finditer(sentence.text):
                 token = match.group(0)
                 if any(cond.label == "TIME" and cond.text == token for cond in conditions):
                     continue
@@ -1189,7 +1151,7 @@ class ConditionExtractorPipeline:
             )
 
         if self.lang == "ko":
-            for match in re.finditer(r"(\d+[여]?[\s]*명)(?:이|가|은|는|을|를)?", sentence.text):
+            for match in get_pattern(self.lang, "ko_value_people").finditer(sentence.text):
                 token = re.sub(r"\s+", "", match.group(1))
                 if any(cond.label == "VALUE" and cond.value == token for cond in conditions):
                     continue
@@ -1203,7 +1165,7 @@ class ConditionExtractorPipeline:
                     )
                 )
 
-            for match in re.finditer(r"수십\s*명", sentence.text):
+            for match in get_pattern(self.lang, "ko_value_tens_people").finditer(sentence.text):
                 token = re.sub(r"\s+", "", match.group(0))
                 if any(cond.label == "VALUE" and cond.value == token for cond in conditions):
                     continue
@@ -1217,7 +1179,7 @@ class ConditionExtractorPipeline:
                     )
                 )
 
-            for match in re.finditer(r"(\d+[여]?\s*척)(?:이|가|은|는|을|를)?", sentence.text):
+            for match in get_pattern(self.lang, "ko_value_ships").finditer(sentence.text):
                 token = re.sub(r"\s+", "", match.group(1))
                 if any(cond.label == "VALUE" and cond.value == token for cond in conditions):
                     continue
@@ -1231,4 +1193,5 @@ class ConditionExtractorPipeline:
                     )
                 )
 
-        return conditions
+        conditions = self._prune_noisy_time_conditions(conditions)
+        return self._dedupe_conditions(conditions)

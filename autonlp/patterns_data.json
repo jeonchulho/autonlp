@@ -1,0 +1,202 @@
+{
+  "NAME_TOKEN": {
+    "ko": "[\\w가-힣]+",
+    "en": "[A-Za-z0-9_]+",
+    "ja": "[\\wぁ-んァ-ン一-龥ー]+",
+    "zh": "[A-Za-z0-9_一-龥㐀-䶿]{1,20}",
+    "fr": "[A-Za-zÀ-ÖØ-öø-ÿ0-9_\\-']+",
+    "de": "[A-Za-zÄÖÜäöüß0-9_\\-']+",
+    "ar": "[\\w\\u0600-\\u06FF]{1,20}"
+  },
+  "LIST_SEPARATORS": "[,，、،]",
+  "RECIPIENT_TO_FORMS": {
+    "ko": ["에게", "한테", "께"],
+    "en": ["to", "for"],
+    "ja": ["に", "宛て", "向け"],
+    "zh": ["给", "向", "对"],
+    "fr": ["à", "pour"],
+    "de": ["an", "für"],
+    "ar": ["إلى", "لـ"]
+  },
+  "SUBJECT_ACTION_FORMS": {
+    "ko": ["수신한", "수신했던", "받은", "받았던", "전송한", "전송했던", "보낸", "보냈던"],
+    "en": ["received", "got", "sent", "transmitted"],
+    "ja": ["受信した", "受け取った", "送った", "送信した"],
+    "zh": ["收到了", "收到", "接收了", "接收", "发送了", "發送了", "传送了", "傳送了"],
+    "fr": ["reçu", "reçus", "envoyé", "envoyés"],
+    "de": ["empfangen", "erhalten", "gesendet", "versendet"],
+    "ar": ["استلموا", "تلقوا", "أرسلوا"]
+  },
+  "ACTION_FILTER_FORMS": {
+    "ko": ["보낸", "보냈던", "전송한", "전송했던", "수신한", "수신했던", "받은", "받았던"],
+    "en": ["sent", "transmitted", "delivered", "received"],
+    "ja": ["送った", "送信した", "受信した", "受け取った"],
+    "zh": ["发送的", "發送的", "传送的", "傳送的", "接收的", "收到的"],
+    "fr": ["envoyé", "envoyée", "envoyés", "envoyées", "reçu", "reçue", "reçus", "reçues"],
+    "de": ["gesendet", "versendet", "empfangen"],
+    "ar": ["المرسلة", "المرسل", "المستلمة", "المستلم"]
+  },
+  "REPORT_VERB_REGEX_BY_LANG": {
+    "ko": "(밝혔|말했|전했|설명했|주장했|언급했|발표했|보도했)",
+    "en": "^(said|stated|announced|reported|noted|added|told)$",
+    "fr": "^(déclaré|indiqué|annoncé|rapporté|affirmé|ajouté)$",
+    "de": "^(sagte|erklärte|berichtete|meldete|fügte)$",
+    "ar": "(قال|صرح|أعلن|ذكر|أفاد)",
+    "zh": "(称|表示|指出|说|宣布)",
+    "ja": "(述べ|語|発表|明らか)"
+  },
+  "SUBJECT_TIME_STOPWORDS_BY_LANG": {
+    "ko": ["이날", "당일", "오늘", "어제", "내일"],
+    "en": ["today", "yesterday", "tomorrow"],
+    "fr": ["aujourd'hui", "hier", "demain"],
+    "de": ["heute", "gestern", "morgen"],
+    "zh": ["今天", "昨天", "明天", "当日", "当天"],
+    "ja": ["今日", "昨日", "明日", "当日"],
+    "ar": ["اليوم", "أمس", "غدًا", "غدا"]
+  },
+  "SUBJECT_NULL_TOKENS_BY_LANG": {
+    "ko": ["쪽지", "메시지", "메일", "이메일", "문자", "내용"],
+    "en": ["message", "messages", "mail", "email", "text", "content"],
+    "fr": ["message", "messages", "mail", "e-mail", "sms", "contenu"],
+    "de": ["nachricht", "nachrichten", "mail", "e-mail", "sms", "inhalt"],
+    "ja": ["メッセージ", "メール", "内容"],
+    "zh": ["消息", "邮件", "短信", "内容"],
+    "ar": ["رسالة", "رسائل", "بريد", "بريد إلكتروني", "رسالة نصية", "المحتوى"]
+  },
+  "OBJECT_SPLIT_SEPARATORS_BY_LANG": {
+    "ko": ["및", "와", "과", "또는"],
+    "en": ["and", "or"],
+    "ja": ["と", "および", "または"],
+    "zh": ["和", "及", "以及", "或", "或者"],
+    "fr": ["et", "ou"],
+    "de": ["und", "oder"],
+    "ar": ["و", "أو"]
+  },
+  "TIME_LIKE_OBJECT_TOKENS_BY_LANG": {
+    "ko": ["어제", "오늘", "내일", "지금", "방금", "최근", "이번", "지난"],
+    "en": ["yesterday", "today", "tomorrow", "now", "recent", "latest", "this", "last"],
+    "fr": ["hier", "aujourd'hui", "demain", "maintenant", "récent", "dernier", "cette", "ce"],
+    "de": ["gestern", "heute", "morgen", "jetzt", "aktuell", "letzte", "dies", "diese"],
+    "ja": ["昨日", "今日", "明日", "今", "最近", "今回", "前回", "当日"],
+    "zh": ["昨天", "今天", "明天", "现在", "最近", "本次", "上次", "当日"],
+    "ar": ["أمس", "اليوم", "غدًا", "غدا", "الآن", "مؤخرًا", "الأخيرة", "هذه"]
+  },
+  "REFERENTIAL_TOKENS_BY_LANG": {
+    "en": ["it", "this", "that", "the content", "this content", "that content", "content"],
+    "ja": ["内容", "その内容", "これ", "それ"],
+    "zh": ["内容", "这个内容", "那个内容", "该内容", "这个", "那个"],
+    "fr": ["contenu", "ce contenu", "ceci", "cela", "ça"],
+    "de": ["inhalt", "dieser inhalt", "dies", "das", "es"],
+    "ar": ["المحتوى", "هذا المحتوى", "ذلك المحتوى", "هذا", "ذلك"]
+  },
+  "PREFERRED_MESSAGE_NOUNS_BY_LANG": {
+    "ko": ["쪽지함", "메시지함", "메일함", "이메일함", "문자함", "쪽지내역", "메시지내역", "메일내역", "이메일내역", "문자내역", "쪽지", "메시지", "문자", "메일", "이메일"],
+    "en": ["message history", "message thread", "mailbox", "inbox", "messages", "message", "email", "mail", "text"],
+    "ja": ["メッセージ履歴", "メールボックス", "受信箱", "メッセージ", "メール"],
+    "zh": ["消息记录", "消息历史", "邮箱", "收件箱", "消息", "邮件", "短信"],
+    "fr": ["historique des messages", "boîte mail", "boîte de réception", "les messages", "des messages", "un message", "messages", "message", "e-mail", "mail", "sms"],
+    "de": ["nachrichtenverlauf", "postfach", "eingang", "nachrichten", "nachricht", "e-mail", "mail", "sms"],
+    "ar": ["سجل الرسائل", "صندوق البريد", "البريد الوارد", "رسائل", "رسالة", "بريد إلكتروني", "بريد", "رسالة نصية"]
+  },
+  "REFERENCE_OBJECT_TOKENS_BY_LANG": {
+    "ko": ["그내용", "그내용을", "그 내용", "그 내용을", "내용", "내용을", "것", "그것", "그것을"],
+    "en": ["content", "the content", "this content", "that content", "it", "this", "that"],
+    "fr": ["contenu", "ce contenu", "ceci", "cela", "ça"],
+    "de": ["inhalt", "dieser inhalt", "dies", "das", "es"],
+    "ja": ["内容", "その内容", "これ", "それ"],
+    "zh": ["内容", "这个内容", "那个内容", "该内容", "这个", "那个"],
+    "ar": ["المحتوى", "هذا المحتوى", "ذلك المحتوى", "هذا", "ذلك"]
+  },
+  "CONNECTORS_BY_LANG": {
+    "ko": ["및", "와", "과", "또는", ",", "，", "、"],
+    "en": ["and", "or", ",", "，", "、"],
+    "fr": ["et", "ou", ",", "，", "、"],
+    "de": ["und", "oder", ",", "，", "、"],
+    "ja": ["と", "および", "または", ",", "，", "、"],
+    "zh": ["和", "及", "以及", "或", "或者", ",", "，", "、"],
+    "ar": ["و", "أو", ",", "،", "，", "、"]
+  },
+  "PATTERN_REGEX_BY_KEY": {
+    "quote_edges": "^[\\\"'“”‘’`]+|[\\\"'“”‘’`]+$",
+    "quote_all": "[\\\"'“”‘’`]+",
+    "trail_punct": "[.,!?;:]+$",
+    "ko_subject_particle": "(이|가|은|는|께서)$",
+    "ko_day_suffix": "\\d+일$",
+    "ko_day_token_exact": "^(\\d{1,2}일|이날|당일|오늘|어제|내일)$",
+    "ko_predicate_dago": "다고$",
+    "ko_reference_method": "(참조해서|참조해|참조|참고해서|참고해|참고)",
+    "ko_numeric_day": "\\b(\\d{1,2})일\\b",
+    "ko_value_people": "(\\d+[여]?[\\s]*명)(?:이|가|은|는|을|를)?",
+    "ko_value_tens_people": "수십\\s*명",
+    "ko_value_ships": "(\\d+[여]?\\s*척)(?:이|가|은|는|을|를)?",
+    "ko_object_particle": "(을|를|은|는|이|가)$",
+    "cjk_inner_space": "(?<=[\\u4e00-\\u9fff])\\s+(?=[\\u4e00-\\u9fff])",
+    "arabic_script": "[\\u0600-\\u06FF]"
+  },
+  "PREDICATE_CONJ_END_REGEX_BY_LANG": {
+    "ko": "(고|서|해|줘|다)$",
+    "en": "(ing|ed|en|s)$",
+    "fr": "(é|ée|és|ées|ant)$",
+    "de": "(en|t|te|end)$",
+    "ja": "(て|で|し|して)$",
+    "zh": "(着|了|过)$",
+    "ar": "(ت|وا|ون|ين)$"
+  },
+  "PREDICATE_ACL_END_REGEX_BY_LANG": {
+    "ko": "(다|다는|됐다|됐다는|했다|했다는)$",
+    "en": "(ed|ing|en)$",
+    "fr": "(é|ée|és|ées|ant)$",
+    "de": "(en|te|ten)$",
+    "ja": "(た|ている|している)$",
+    "zh": "(的|了|过)$",
+    "ar": "(ت|وا|ون|ين)$"
+  },
+  "PREDICATE_CONNECTOR_STOPWORDS_BY_LANG": {
+    "ko": ["그리고", "또는", "및", "와", "과"],
+    "en": ["and", "or", "then", "also"],
+    "fr": ["et", "ou", "puis", "aussi"],
+    "de": ["und", "oder", "dann", "auch"],
+    "ja": ["そして", "または", "および", "また"],
+    "zh": ["和", "及", "以及", "或", "而且"],
+    "ar": ["و", "أو", "ثم", "أيضًا", "ايضا"]
+  },
+  "PREDICATE_SKIP_NEXT_AUX_TOKENS_BY_LANG": {
+    "ko": ["할", "한", "하는"],
+    "en": ["be", "been", "being", "have", "has", "had"],
+    "fr": ["être", "été", "ayant", "avoir", "a", "ont"],
+    "de": ["sein", "gewesen", "haben", "hat"],
+    "ar": ["كان", "كانت", "يكون", "تكون", "ليس", "ليست"]
+  },
+  "PREDICATE_EVENT_LIKE_REGEX_BY_LANG": {
+    "ko": "(침몰|격침|실종|발사|전해|밝혔|작성|보내|참조|알려)",
+    "en": "(sink|sank|launch|torpedo|destroy|miss|dead|killed|attack|rescue|explode)",
+    "fr": "(coulé|couler|tiré|tirer|torpille|frapp|détruit|disparu|attaque|explos|produit|produite|survenu|survenue)",
+    "de": "(torpedo|feuer|versenk|sank|explod|angriff|vermisst|getötet)",
+    "ar": "(أطلق|أغر|غرق|هجم|انفجر|فقد|قتل)",
+    "ja": "(沈|沈没|撃沈|爆発|失踪|救助|攻撃)",
+    "zh": "(沉没|击沉|爆炸|失踪|袭击|救援|发生)"
+  },
+  "PREDICATE_SUPPRESS_TOKENS_BASE_BY_LANG": {
+    "ko": ["입장이다", "것이다", "나온", "나왔다"],
+    "en": ["said", "stated", "announced", "reported", "added", "noted"],
+    "fr": ["déclaré", "indiqué", "annoncé", "rapporté", "affirmé"],
+    "de": ["sagte", "erklärte", "berichtete", "meldete", "fügte"],
+    "ar": ["قال", "صرح", "أعلن", "ذكر", "أفاد"],
+    "ja": ["述べ", "述べた", "語", "語った", "発表"],
+    "zh": ["表示", "称", "指出", "宣布", "提到"]
+  },
+  "PREDICATE_SUPPRESS_TOKENS_EXTRA_BY_LANG": {
+    "ko": ["밝혔다", "전했다", "말했다"],
+    "en": ["told", "says", "saying"],
+    "fr": ["dit", "ajouté", "ajoute"],
+    "de": ["gesagt", "sagt", "hinzugefügt"],
+    "ja": ["述べた", "語った", "付け加えた"],
+    "zh": ["表示", "称", "补充"],
+    "ar": ["أضاف", "أوضح", "قالت"]
+  },
+  "AUXILIARIES_BY_LANG": {
+    "en": ["be", "do", "have"],
+    "fr": ["être", "avoir"],
+    "de": ["sein", "haben"]
+  }
+}
